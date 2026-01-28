@@ -429,18 +429,30 @@ include '../includes/header.php';
                     <div class="list-group list-group-flush">
                         <?php foreach ($inscricoes as $insc): ?>
                             <div class="list-group-item px-0 py-3">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="flex-grow-1">
                                         <h6 class="mb-1"><?= sanitizar($insc['plano_nome']) ?></h6>
-                                        <small class="text-muted d-block">- R$ <?= number_format($insc['preco'], 2, ',', '.') ?></small>
+                                        <small class="text-muted d-block">R$ <?= number_format($insc['preco'], 2, ',', '.') ?></small>
                                         <small class="text-muted">
                                             <i class="bi bi-calendar-check me-1"></i>Vence: <?= date('d/m/Y', strtotime($insc['data_fim'])) ?>
                                         </small>
+                                        <span class="badge bg-<?= $insc['status'] === 'ativo' ? 'success' : 'secondary' ?> ms-2">
+                                            <?= ucfirst($insc['status']) ?>
+                                        </span>
                                     </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="cancelar_inscricoes[]" value="<?= $insc['id'] ?>" id="cancel_<?= $insc['id'] ?>">
-                                        <label class="form-check-label text-danger small" for="cancel_<?= $insc['id'] ?>">Cancelar</label>
+                                    <?php if ($insc['status'] === 'ativo'): ?>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="cancelar_inscricoes[]"
+                                                   value="<?= $insc['id'] ?>" id="cancel_<?= $insc['id'] ?>"
+                                                   style="width: 3em; height: 1.5em; cursor: pointer;">
+                                            <label class="form-check-label text-danger fw-bold ms-2" for="cancel_<?= $insc['id'] ?>"
+                                                   style="cursor: pointer;">
+                                                <i class="bi bi-trash me-1"></i>Excluir
+                                            </label>
+                                        </div>
                                     </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -521,6 +533,40 @@ function adicionarNovoPlano() {
     `;
     container.appendChild(div);
 }
+
+// Adicionar feedback visual ao marcar planos para exclusão
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('input[name="cancelar_inscricoes[]"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const listItem = this.closest('.list-group-item');
+            if (this.checked) {
+                listItem.style.backgroundColor = '#ffe6e6';
+                listItem.style.opacity = '0.7';
+                listItem.style.textDecoration = 'line-through';
+            } else {
+                listItem.style.backgroundColor = '';
+                listItem.style.opacity = '';
+                listItem.style.textDecoration = '';
+            }
+        });
+    });
+    
+    // Confirmação antes de salvar se houver planos marcados para exclusão
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const planosParaExcluir = document.querySelectorAll('input[name="cancelar_inscricoes[]"]:checked');
+            if (planosParaExcluir.length > 0) {
+                const confirmacao = confirm(`Você marcou ${planosParaExcluir.length} plano(s) para exclusão. Deseja continuar?`);
+                if (!confirmacao) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
+    }
+});
 </script>
 
 <!-- Modal Gerar Financeiro -->
