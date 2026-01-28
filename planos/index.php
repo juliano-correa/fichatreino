@@ -371,7 +371,8 @@ function editarPlano(id, nome, preco, duracao, descricao, modalidades_ids) {
         });
     }
     
-    var modal = new bootstrap.Modal(document.getElementById('planoModal'));
+    var modalElement = document.getElementById('planoModal');
+    var modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
     modal.show();
 }
 

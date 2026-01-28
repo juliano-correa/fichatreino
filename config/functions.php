@@ -4,6 +4,23 @@
  */
 
 if (session_status() === PHP_SESSION_NONE) {
+    // Configurações de segurança para cookies de sessão
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.use_only_cookies', 1);
+    
+    $is_https = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+    if ($is_https) {
+        ini_set('session.cookie_secure', 1);
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => '/',
+            'domain' => $_SERVER['HTTP_HOST'],
+            'secure' => true,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+    }
+    
     session_start();
 }
 

@@ -26,10 +26,44 @@ try {
         redirecionar('index.php');
     }
     
-    // Planos disponíveis
-    $stmt = $pdo->prepare("SELECT p.*, m.nome as modalidade_nome FROM plans p LEFT JOIN modalities m ON p.modalidade_id = m.id WHERE p.gym_id = :gym_id AND p.ativo = 1 ORDER BY m.nome, p.nome");
-    $stmt->execute([':gym_id' => getGymId()]);
-    $planos_disponiveis = $stmt->fetchAll();
+    // Planos disponíveis - Simplificado para garantir exibição
+    try {
+        $stmt = $pdo->prepare("SELECT p.* FROM plans p WHERE p.gym_id = :gym_id AND p.ativo = 1 ORDER BY p.nome");
+        $stmt->execute([':gym_id' => getGymId()]);
+        $planos_disponiveis = $stmt->fetchAll();
+        
+        // Buscar modalidades para cada plano se a tabela plan_modalities existir
+        $stmt_check = $pdo->query("SHOW TABLES LIKE 'plan_modalities'");
+        $tem_plan_modalities = $stmt_check->fetch() !== false;
+        
+        foreach ($planos_disponiveis as &$plano) {
+            $modalidades_nomes = [];
+            if ($tem_plan_modalities) {
+                $stmt_mod = $pdo->prepare("
+                    SELECT m.nome 
+                    FROM modalities m 
+                    JOIN plan_modalities pm ON m.id = pm.modalidade_id 
+                    WHERE pm.plan_id = :plan_id
+                ");
+                $stmt_mod->execute([':plan_id' => $plano['id']]);
+                $modalidades_nomes = $stmt_mod->fetchAll(PDO::FETCH_COLUMN);
+            }
+            
+            // Se não encontrou em plan_modalities, tenta a coluna modalidade_id direta
+            if (empty($modalidades_nomes) && !empty($plano['modalidade_id'])) {
+                $stmt_mod_dir = $pdo->prepare("SELECT nome FROM modalities WHERE id = ?");
+                $stmt_mod_dir->execute([$plano['modalidade_id']]);
+                $mod_nome = $stmt_mod_dir->fetchColumn();
+                if ($mod_nome) $modalidades_nomes[] = $mod_nome;
+            }
+            
+            $plano['modalidade_nome'] = !empty($modalidades_nomes) ? implode(', ', $modalidades_nomes) : 'Geral';
+        }
+        unset($plano);
+    } catch (PDOException $e) {
+        $error = 'Erro ao carregar planos: ' . $e->getMessage();
+        $planos_disponiveis = [];
+    }
     
     $stmt = $pdo->prepare("SELECT * FROM modalities WHERE gym_id = :gym_id AND ativa = 1 ORDER BY nome");
     $stmt->execute([':gym_id' => getGymId()]);
@@ -55,10 +89,9 @@ try {
     $inscricoes = [];
     if ($tabela_subscriptions_existe) {
         $stmt = $pdo->prepare("
-            SELECT s.*, p.nome as plano_nome, p.preco, m.nome as modalidade_nome 
+            SELECT s.*, p.nome as plano_nome, p.preco 
             FROM subscriptions s 
             LEFT JOIN plans p ON s.plano_id = p.id 
-            LEFT JOIN modalities m ON p.modalidade_id = m.id
             WHERE s.aluno_id = :aluno_id 
             ORDER BY s.data_inicio DESC
         ");
@@ -84,35 +117,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $contato_emergencia = trim($_POST['contato_emergencia'] ?? '');
     $telefone_emergencia = preg_replace('/\D/', '', $_POST['telefone_emergencia'] ?? '');
     $observacoes = trim($_POST['observacoes'] ?? '');
-    $objetivo = $_POST['objetivo'] ?? '';
+    $objetivo = trim($_POST['objetivo'] ?? '');
     $nivel = $_POST['nivel'] ?? '';
     $status = $_POST['status'] ?? 'ativo';
+    
     $modalidades_selecionadas = $_POST['modalidades'] ?? [];
     $novos_planos = $_POST['novos_planos'] ?? [];
-    $inscricoes_cancelar = $_POST['inscricoes_cancelar'] ?? [];
-    
+    $inscricoes_cancelar = $_POST['cancelar_inscricoes'] ?? [];
+
     if (empty($nome)) {
-        $error = 'O nome é obrigatório.';
-    } elseif (!empty($cpf) && !validarCPF($cpf)) {
-        $error = 'CPF inválido. Por favor, verifique o número digitado.';
-    } elseif (!empty($cpf)) {
-        // Verificar se CPF já existe (exceto o próprio aluno)
-        try {
-            $stmt_check = $pdo->prepare("SELECT COUNT(*) FROM students WHERE gym_id = :gym_id AND cpf = :cpf AND id != :id");
-            $stmt_check->execute([
-                ':gym_id' => getGymId(),
-                ':cpf' => $cpf,
-                ':id' => $aluno_id
-            ]);
-            if ($stmt_check->fetchColumn() > 0) {
-                $error = 'Este CPF já está cadastrado para outro aluno nesta academia.';
-            }
-        } catch (PDOException $e) {
-            $error = 'Erro ao verificar CPF: ' . $e->getMessage();
-        }
+        $error = 'O nome do aluno é obrigatório.';
     }
-    
-    // Se não houver erro, prosseguir com a atualização
+
     if (empty($error)) {
         try {
             $pdo->beginTransaction();
@@ -156,9 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Criar novas inscrições
             if (!empty($novos_planos) && $tabela_subscriptions_existe) {
                 foreach ($novos_planos as $plano_id) {
-                    if (in_array($plano_id, array_column($inscricoes, 'plano_id'))) {
-                        continue; // Já possui este plano
-                    }
+                    if (empty($plano_id)) continue;
                     
                     // Buscar dados do plano
                     $stmt_plano = $pdo->prepare("SELECT * FROM plans WHERE id = :id");
@@ -189,21 +203,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         $inscricao_id = $pdo->lastInsertId();
                         
-                        // Criar transação
+                        // Criar transação inicial
                         if (!empty($plano['preco'])) {
                             $stmt_trans = $pdo->prepare("INSERT INTO transactions (
-                                gym_id, aluno_id, inscricao_id, tipo, categoria, descricao, valor, data_vencimento, status
+                                gym_id, aluno_id, tipo, categoria, descricao, valor, data_vencimento, status
                             ) VALUES (
-                                :gym_id, :aluno_id, :inscricao_id, 'receita', 'mensalidade', :descricao, :valor, :data_vencimento, 'pendente'
+                                :gym_id, :aluno_id, 'entrada', 'mensalidade', :descricao, :valor, :data_vencimento, 'pendente'
                             )");
                             
                             $stmt_trans->execute([
                                 ':gym_id' => getGymId(),
                                 ':aluno_id' => $aluno_id,
-                                ':inscricao_id' => $inscricao_id,
                                 ':descricao' => "Mensalidade - {$plano['nome']}",
                                 ':valor' => $plano['preco'],
-                                ':data_vencimento' => date('Y-m-d', strtotime('+1 month'))
+                                ':data_vencimento' => date('Y-m-d')
                             ]);
                         }
                     }
@@ -227,21 +240,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            // Atualizar plano_atual_id (primeira inscrição ativa)
+            // Atualizar plano_atual_id e validade (primeira inscrição ativa mais recente)
             $stmt_plano_atual = $pdo->prepare("
-                SELECT plano_id FROM subscriptions 
-                WHERE aluno_id = :aluno_id AND status = 'ativo' 
-                ORDER BY data_inicio DESC LIMIT 1
+                SELECT s.plano_id, s.data_fim 
+                FROM subscriptions s
+                WHERE s.aluno_id = :aluno_id AND s.status = 'ativo' 
+                ORDER BY s.data_inicio DESC LIMIT 1
             ");
             $stmt_plano_atual->execute([':aluno_id' => $aluno_id]);
-            $novo_plano_atual = $stmt_plano_atual->fetchColumn();
+            $plano_data = $stmt_plano_atual->fetch();
             
-            $stmt_update_plano = $pdo->prepare("UPDATE students SET plano_atual_id = :plano_id WHERE id = :id");
-            $stmt_update_plano->execute([':plano_id' => $novo_plano_atual ?: null, ':id' => $aluno_id]);
+            if ($plano_data) {
+                $stmt_upd_plano = $pdo->prepare("UPDATE students SET plano_atual_id = :plano_id, plano_validade = :validade WHERE id = :id");
+                $stmt_upd_plano->execute([
+                    ':plano_id' => $plano_data['plano_id'], 
+                    ':validade' => $plano_data['data_fim'],
+                    ':id' => $aluno_id
+                ]);
+            } else {
+                $stmt_upd_plano = $pdo->prepare("UPDATE students SET plano_atual_id = NULL, plano_validade = NULL WHERE id = :id");
+                $stmt_upd_plano->execute([':id' => $aluno_id]);
+            }
             
             $pdo->commit();
+            $success = 'Aluno atualizado com sucesso!';
             
-            // Recarregar dados
+            // Recarregar dados do aluno
             $stmt = $pdo->prepare("SELECT * FROM students WHERE id = :id AND gym_id = :gym_id");
             $stmt->execute([':id' => $aluno_id, ':gym_id' => getGymId()]);
             $aluno = $stmt->fetch();
@@ -249,38 +273,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Recarregar inscrições
             if ($tabela_subscriptions_existe) {
                 $stmt = $pdo->prepare("
-                    SELECT s.*, p.nome as plano_nome, p.preco, m.nome as modalidade_nome 
+                    SELECT s.*, p.nome as plano_nome, p.preco 
                     FROM subscriptions s 
                     LEFT JOIN plans p ON s.plano_id = p.id 
-                    LEFT JOIN modalities m ON p.modalidade_id = m.id
                     WHERE s.aluno_id = :aluno_id 
                     ORDER BY s.data_inicio DESC
                 ");
                 $stmt->execute([':aluno_id' => $aluno_id]);
                 $inscricoes = $stmt->fetchAll();
             }
-            
-            $success = 'Aluno atualizado com sucesso!';
-            
+
         } catch (PDOException $e) {
             $pdo->rollBack();
-            $error = 'Erro ao atualizar: ' . $e->getMessage();
+            $error = 'Erro ao atualizar aluno: ' . $e->getMessage();
         }
     }
 }
+
+include '../includes/header.php';
 ?>
 
-<?php include '../includes/header.php'; ?>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="index.php">Alunos</a></li>
+                <li class="breadcrumb-item active">Editar: <?= sanitizar($aluno['nome']) ?></li>
+            </ol>
+        </nav>
+        <h4 class="mb-0"><?= $titulo_pagina ?></h4>
+    </div>
+    <a href="index.php" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Voltar
+    </a>
+</div>
 
-<!-- Breadcrumb -->
-<nav aria-label="breadcrumb" class="mb-4">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="index.php">Alunos</a></li>
-        <li class="breadcrumb-item active">Editar: <?= sanitizar($aluno['nome']) ?></li>
-    </ol>
-</nav>
-
-<!-- Mensagens -->
 <?php if ($error): ?>
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-triangle me-2"></i><?= $error ?>
@@ -295,291 +322,327 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 <?php endif; ?>
 
-<form method="POST" id="formAluno">
-    <div class="row g-4">
-        <!-- Dados Pessoais -->
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-person me-2"></i>Dados Pessoais
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="nome" class="form-label fw-bold">Nome Completo *</label>
-                            <input type="text" class="form-control" id="nome" name="nome" value="<?= sanitizar($aluno['nome']) ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="cpf" class="form-label">CPF</label>
-                            <input type="text" class="form-control cpf-input" id="cpf" name="cpf" value="<?= formatarCPF($aluno['cpf']) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="email" class="form-label">E-mail</label>
-                            <input type="email" class="form-control" id="email" name="email" value="<?= sanitizar($aluno['email']) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="telefone" class="form-label fw-bold">Telefone/WhatsApp *</label>
-                            <input type="text" class="form-control phone-input" id="telefone" name="telefone" value="<?= formatarTelefone($aluno['telefone']) ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="telefone2" class="form-label">Telefone Alternativo</label>
-                            <input type="text" class="form-control phone-input" id="telefone2" name="telefone2" value="<?= formatarTelefone($aluno['telefone2']) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="data_nascimento" class="form-label">Data de Nascimento</label>
-                            <input type="date" class="form-control" id="data_nascimento" name="data_nascimento" value="<?= formatarDataInput($aluno['data_nascimento']) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="genero" class="form-label">Gênero</label>
-                            <select class="form-select" id="genero" name="genero">
-                                <option value="">Selecione...</option>
-                                <option value="M" <?= $aluno['genero'] === 'M' ? 'selected' : '' ?>>Masculino</option>
-                                <option value="F" <?= $aluno['genero'] === 'F' ? 'selected' : '' ?>>Feminino</option>
-                                <option value="O" <?= $aluno['genero'] === 'O' ? 'selected' : '' ?>>Outro</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="cidade" class="form-label">Cidade</label>
-                            <input type="text" class="form-control" id="cidade" name="cidade" value="<?= sanitizar($aluno['cidade']) ?>">
-                        </div>
-                        <div class="col-12">
-                            <label for="endereco" class="form-label">Endereço</label>
-                            <input type="text" class="form-control" id="endereco" name="endereco" value="<?= sanitizar($aluno['endereco']) ?>">
-                        </div>
-                    </div>
-                </div>
+<form method="POST" class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-person me-2"></i>Dados Pessoais</h5>
             </div>
-            
-            <!-- Contato de Emergência -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-exclamation-triangle me-2"></i>Contato de Emergência
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="contato_emergencia" class="form-label">Nome do Contato</label>
-                            <input type="text" class="form-control" id="contato_emergencia" name="contato_emergencia" value="<?= sanitizar($aluno['contato_emergencia']) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="telefone_emergencia" class="form-label">Telefone</label>
-                            <input type="text" class="form-control phone-input" id="telefone_emergencia" name="telefone_emergencia" value="<?= formatarTelefone($aluno['telefone_emergencia']) ?>">
-                        </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Nome Completo *</label>
+                        <input type="text" name="nome" class="form-control" value="<?= sanitizar($aluno['nome']) ?>" required>
                     </div>
-                </div>
-            </div>
-            
-            <!-- Observações -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-sticky me-2"></i>Observações
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <textarea class="form-control" id="observacoes" name="observacoes" rows="3"><?= sanitizar($aluno['observacoes']) ?></textarea>
+                    <div class="col-md-4">
+                        <label class="form-label">CPF</label>
+                        <input type="text" name="cpf" class="form-control mask-cpf" value="<?= sanitizar($aluno['cpf']) ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">E-mail</label>
+                        <input type="email" name="email" class="form-control" value="<?= sanitizar($aluno['email']) ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Telefone/WhatsApp *</label>
+                        <input type="text" name="telefone" class="form-control mask-phone" value="<?= sanitizar($aluno['telefone']) ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Telefone Alternativo</label>
+                        <input type="text" name="telefone2" class="form-control mask-phone" value="<?= sanitizar($aluno['telefone2']) ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Data de Nascimento</label>
+                        <input type="date" name="data_nascimento" class="form-control" value="<?= $aluno['data_nascimento'] ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Gênero</label>
+                        <select name="genero" class="form-select">
+                            <option value="">Selecione...</option>
+                            <option value="Masculino" <?= $aluno['genero'] === 'Masculino' ? 'selected' : '' ?>>Masculino</option>
+                            <option value="Feminino" <?= $aluno['genero'] === 'Feminino' ? 'selected' : '' ?>>Feminino</option>
+                            <option value="Outro" <?= $aluno['genero'] === 'Outro' ? 'selected' : '' ?>>Outro</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Cidade</label>
+                        <input type="text" name="cidade" class="form-control" value="<?= sanitizar($aluno['cidade']) ?>">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Endereço</label>
+                        <input type="text" name="endereco" class="form-control" value="<?= sanitizar($aluno['endereco']) ?>">
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Barra Lateral -->
-        <div class="col-lg-4">
-            <!-- Planos Ativos -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-credit-card me-2"></i>Planos Ativos
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <?php if (!$tabela_subscriptions_existe): ?>
-                        <div class="alert alert-warning py-2 mb-0">
-                            <small>A tabela de inscrições não existe.</small>
-                        </div>
-                    <?php elseif (empty($inscricoes)): ?>
-                        <div class="alert alert-info py-2 mb-0">
-                            <small>Este aluno não possui nenhum plano ativo.</small>
-                        </div>
-                    <?php else: ?>
-                        <div class="list-group list-group-flush">
-                            <?php foreach ($inscricoes as $insc): ?>
-                                <?php if ($insc['status'] === 'ativo'): ?>
-                                    <div class="list-group-item bg-light rounded mb-2">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div>
-                                                <strong><?= sanitizar($insc['plano_nome']) ?></strong>
-                                                <br>
-                                                <small class="text-muted">
-                                                    <?= sanitizar($insc['modalidade_nome']) ?> - 
-                                                    <?= formatarMoeda($insc['preco']) ?>
-                                                </small>
-                                                <br>
-                                                <small class="text-success">
-                                                    <i class="bi bi-calendar3 me-1"></i>
-                                                    Vence: <?= formatarData($insc['data_fim']) ?>
-                                                </small>
-                                            </div>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" 
-                                                       name="inscricoes_cancelar[]" 
-                                                       value="<?= $insc['id'] ?>" 
-                                                       id="cancelar_<?= $insc['id'] ?>">
-                                                <label class="form-check-label text-danger small" for="cancelar_<?= $insc['id'] ?>">
-                                                    Cancelar
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informações Adicionais</h5>
             </div>
-            
-            <!-- Adicionar Novo Plano -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-plus-circle me-2"></i>Adicionar Novo Plano
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($planos_disponiveis)): ?>
-                        <div class="alert alert-info py-2 mb-0">
-                            <small>Nenhum plano disponível.</small>
-                        </div>
-                    <?php else: ?>
-                        <div class="mb-3">
-                            <label class="form-label">Selecione um plano:</label>
-                            <select class="form-select" name="novos_planos[]" id="novo_plano">
-                                <option value="">Selecione um plano...</option>
-                                <?php 
-                                // Exibir apenas planos que o aluno não possui
-                                $planos_possuidos = array_column($inscricoes, 'plano_id');
-                                foreach ($planos_disponiveis as $plano): 
-                                    if (!in_array($plano['id'], $planos_possuidos)):
-                                ?>
-                                    <option value="<?= $plano['id'] ?>">
-                                        <?= sanitizar($plano['nome']) ?> - <?= sanitizar($plano['modalidade_nome']) ?> (<?= formatarMoeda($plano['preco']) ?>)
-                                    </option>
-                                <?php 
-                                    endif;
-                                endforeach; 
-                                ?>
-                            </select>
-                            <small class="text-muted">Selecione um plano que o aluno ainda não possui.</small>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-            
-            <!-- Configurações -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-gear me-2"></i>Configurações
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label for="status" class="form-label">Status</label>
-                        <select class="form-select" id="status" name="status">
-                            <option value="ativo" <?= $aluno['status'] === 'ativo' ? 'selected' : '' ?>>Ativo</option>
-                            <option value="inativo" <?= $aluno['status'] === 'inativo' ? 'selected' : '' ?>>Inativo</option>
-                            <option value="suspenso" <?= $aluno['status'] === 'suspenso' ? 'selected' : '' ?>>Suspenso</option>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Contato de Emergência</label>
+                        <input type="text" name="contato_emergencia" class="form-control" value="<?= sanitizar($aluno['contato_emergencia']) ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Telefone de Emergência</label>
+                        <input type="text" name="telefone_emergencia" class="form-control mask-phone" value="<?= sanitizar($aluno['telefone_emergencia']) ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Objetivo</label>
+                        <input type="text" name="objetivo" class="form-control" value="<?= sanitizar($aluno['objetivo']) ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Nível</label>
+                        <select name="nivel" class="form-select">
+                            <option value="Iniciante" <?= $aluno['nivel'] === 'Iniciante' ? 'selected' : '' ?>>Iniciante</option>
+                            <option value="Intermediário" <?= $aluno['nivel'] === 'Intermediário' ? 'selected' : '' ?>>Intermediário</option>
+                            <option value="Avançado" <?= $aluno['nivel'] === 'Avançado' ? 'selected' : '' ?>>Avançado</option>
                         </select>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="objetivo" class="form-label">Objetivo</label>
-                        <select class="form-select" id="objetivo" name="objetivo">
-                            <option value="">Selecione...</option>
-                            <option value="emagrecimento" <?= $aluno['objetivo'] === 'emagrecimento' ? 'selected' : '' ?>>Emagrecimento</option>
-                            <option value="hipertrofia" <?= $aluno['objetivo'] === 'hipertrofia' ? 'selected' : '' ?>>Hipertrofia</option>
-                            <option value="condicionamento" <?= $aluno['objetivo'] === 'condicionamento' ? 'selected' : '' ?>>Condicionamento</option>
-                            <option value="saude" <?= $aluno['objetivo'] === 'saude' ? 'selected' : '' ?>>Saúde</option>
-                            <option value="competicao" <?= $aluno['objetivo'] === 'competicao' ? 'selected' : '' ?>>Competição</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="nivel" class="form-label">Nível</label>
-                        <select class="form-select" id="nivel" name="nivel">
-                            <option value="">Selecione...</option>
-                            <option value="iniciante" <?= $aluno['nivel'] === 'iniciante' ? 'selected' : '' ?>>Iniciante</option>
-                            <option value="intermediario" <?= $aluno['nivel'] === 'intermediario' ? 'selected' : '' ?>>Intermediário</option>
-                            <option value="avancado" <?= $aluno['nivel'] === 'avancado' ? 'selected' : '' ?>>Avançado</option>
-                        </select>
+                    <div class="col-12">
+                        <label class="form-label">Observações Médicas/Gerais</label>
+                        <textarea name="observacoes" class="form-control" rows="3"><?= sanitizar($aluno['observacoes']) ?></textarea>
                     </div>
                 </div>
             </div>
-            
-            <!-- Modalidades -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-list-check me-2"></i>Modalidades
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <?php if (!$tabela_relacionamento_existe): ?>
-                        <div class="alert alert-warning py-2 mb-0">
-                            <small>A tabela de relacionamento ainda não foi criada.</small>
-                        </div>
-                    <?php elseif (empty($modalidades)): ?>
-                        <div class="alert alert-info py-2 mb-0">
-                            <small>Nenhuma modalidade ativa encontrada.</small>
-                        </div>
-                    <?php else: ?>
-                        <div class="modalidades-checkboxes" style="max-height: 200px; overflow-y: auto;">
-                            <?php foreach ($modalidades as $modalidade): ?>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" 
-                                           name="modalidades[]" 
-                                           id="modalidade_<?= $modalidade['id'] ?>" 
-                                           value="<?= $modalidade['id'] ?>"
-                                           <?= in_array($modalidade['id'], $modalidades_aluno) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="modalidade_<?= $modalidade['id'] ?>">
-                                        <?= sanitizar($modalidade['nome']) ?>
-                                    </label>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <small class="text-muted">Selecione uma ou mais modalidades para o aluno.</small>
-                    <?php endif; ?>
-                </div>
-            </div>
-            
-            <!-- Ações -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-body">
-                    <button type="submit" class="btn btn-primary w-100 mb-2">
-                        <i class="bi bi-check-lg me-2"></i>Salvar Alterações
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-card-list me-2"></i>Planos Ativos</h5>
+                <?php if (!empty($inscricoes)): ?>
+                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalFinanceiro">
+                        <i class="bi bi-cash-coin me-1"></i>Gerar Financeiro
                     </button>
-                    <a href="index.php" class="btn btn-outline-secondary w-100">
-                        <i class="bi bi-arrow-left me-2"></i>Voltar
-                    </a>
+                <?php endif; ?>
+            </div>
+            <div class="card-body">
+                <?php if (empty($inscricoes)): ?>
+                    <div class="alert alert-warning py-2 mb-0">
+                        <small>Nenhum plano ativo encontrado.</small>
+                    </div>
+                <?php else: ?>
+                    <div class="list-group list-group-flush">
+                        <?php foreach ($inscricoes as $insc): ?>
+                            <div class="list-group-item px-0 py-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1"><?= sanitizar($insc['plano_nome']) ?></h6>
+                                        <small class="text-muted d-block">- R$ <?= number_format($insc['preco'], 2, ',', '.') ?></small>
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar-check me-1"></i>Vence: <?= date('d/m/Y', strtotime($insc['data_fim'])) ?>
+                                        </small>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="cancelar_inscricoes[]" value="<?= $insc['id'] ?>" id="cancel_<?= $insc['id'] ?>">
+                                        <label class="form-check-label text-danger small" for="cancel_<?= $insc['id'] ?>">Cancelar</label>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Adicionar Novo Plano</h5>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarNovoPlano()">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <?php if (empty($planos_disponiveis)): ?>
+                    <div class="alert alert-info py-2 mb-0">
+                        <small>Nenhum plano disponível.</small>
+                    </div>
+                <?php else: ?>
+                    <div id="container-novos-planos">
+                        <div class="novo-plano-item mb-3">
+                            <select class="form-select" name="novos_planos[]">
+                                <option value="">Selecione um plano...</option>
+                                <?php foreach ($planos_disponiveis as $plano): ?>
+                                    <option value="<?= $plano['id'] ?>">
+                                        <?= sanitizar($plano['nome']) ?> (<?= sanitizar($plano['modalidade_nome']) ?>) - <?= formatarMoeda($plano['preco']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <small class="text-muted">Selecione um ou mais planos para adicionar ao aluno.</small>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Configurações</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="ativo" <?= $aluno['status'] === 'ativo' ? 'selected' : '' ?>>Ativo</option>
+                        <option value="inativo" <?= $aluno['status'] === 'inativo' ? 'selected' : '' ?>>Inativo</option>
+                        <option value="suspenso" <?= $aluno['status'] === 'suspenso' ? 'selected' : '' ?>>Suspenso</option>
+                    </select>
                 </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">
+                    <i class="bi bi-check-lg me-1"></i>Salvar Alterações
+                </button>
             </div>
         </div>
     </div>
 </form>
 
 <script>
-// Confirmação de cancelamento de plano
-document.querySelectorAll('input[name="inscricoes_cancelar[]"]').forEach(checkbox => {
-    checkbox.addEventListener('change', function() {
-        if (this.checked) {
-            if (!confirm('Tem certeza que deseja CANCELAR este plano? Esta ação não pode ser desfeita.')) {
-                this.checked = false;
+function adicionarNovoPlano() {
+    const container = document.getElementById('container-novos-planos');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'novo-plano-item mb-3 d-flex gap-2';
+    div.innerHTML = `
+        <select class="form-select" name="novos_planos[]">
+            <option value="">Selecione um plano...</option>
+            <?php foreach ($planos_disponiveis as $plano): ?>
+                <option value="<?= $plano['id'] ?>">
+                    <?= sanitizar($plano['nome']) ?> (<?= sanitizar($plano['modalidade_nome']) ?>) - <?= formatarMoeda($plano['preco']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(div);
+}
+</script>
+
+<!-- Modal Gerar Financeiro -->
+<div class="modal fade" id="modalFinanceiro" tabindex="-1" aria-labelledby="modalFinanceiroLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalFinanceiroLabel">Gerar Financeiro</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formGerarFinanceiro">
+                <div class="modal-body">
+                    <input type="hidden" name="aluno_id" value="<?= $aluno_id ?>">
+                    
+                    <div class="mb-4">
+                        <h6>Resumo dos Planos:</h6>
+                        <ul class="list-group mb-3">
+                            <?php 
+                            $total_planos = 0;
+                            foreach ($inscricoes as $insc): 
+                                if ($insc['status'] === 'ativo'):
+                                    $total_planos += (float)$insc['preco'];
+                            ?>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <?= sanitizar($insc['plano_nome']) ?>
+                                    <span>R$ <?= number_format($insc['preco'], 2, ',', '.') ?></span>
+                                </li>
+                            <?php 
+                                endif;
+                            endforeach; 
+                            ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center bg-light fw-bold">
+                                Total Mensal
+                                <span class="text-primary">R$ <?= number_format($total_planos, 2, ',', '.') ?></span>
+                            </li>
+                        </ul>
+                        <input type="hidden" name="valor_total" value="<?= $total_planos ?>">
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Dia de Vencimento</label>
+                            <input type="number" name="dia_vencimento" class="form-control" min="1" max="31" value="<?= date('d') ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Qtd. de Parcelas</label>
+                            <input type="number" name="qtd_parcelas" class="form-control" min="1" value="1" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 p-3 bg-light rounded small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        As parcelas serão geradas a partir do mês atual se o dia de vencimento ainda não passou. Caso contrário, iniciarão no próximo mês.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnGerarParcelas">Gerar Parcelas</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicialização da Modal para evitar conflitos
+    const modalFinanceiroEl = document.getElementById('modalFinanceiro');
+    let modalFinanceiroInstance = null;
+    
+    if (modalFinanceiroEl && typeof bootstrap !== 'undefined') {
+        modalFinanceiroEl.addEventListener('show.bs.modal', function() {
+            document.body.classList.add('modal-open');
+        });
+        
+        modalFinanceiroEl.addEventListener('hidden.bs.modal', function() {
+            // Limpeza manual se necessário
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        });
+    }
+
+    const formFinanceiro = document.getElementById('formGerarFinanceiro');
+    if (formFinanceiro) {
+        formFinanceiro.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('btnGerarParcelas');
+            const originalText = btn.innerHTML;
+            
+            if (confirm('Deseja gerar as parcelas financeiras para este aluno?')) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Gerando...';
+                
+                const formData = new FormData(this);
+                
+                fetch('gerar_financeiro.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert('Erro: ' + data.message);
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    alert('Ocorreu um erro ao processar a solicitação.');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
             }
-        }
-    });
+        });
+    }
 });
 </script>
 

@@ -154,10 +154,16 @@ function getPermissions() {
             'dashboard.view',
             
             // Próprias Fichas
+            'fichas.view',
             'fichas.view_self',
             
             // Próprias Avaliações
+            'avaliacoes.view',
             'avaliacoes.view_self',
+
+            // Próprio Financeiro
+            'financeiro.view',
+            'financeiro.view_self',
         ]
     ];
 }

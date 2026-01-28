@@ -283,7 +283,8 @@ function editarModalidade(id, nome, descricao, cor, icone) {
         }
     });
     
-    var modal = new bootstrap.Modal(document.getElementById('modalidadeModal'));
+    var modalElement = document.getElementById('modalidadeModal');
+    var modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
     modal.show();
 }
 

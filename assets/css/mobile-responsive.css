@@ -31,6 +31,17 @@
     body {
         font-size: 14px;
         line-height: 1.5;
+        overflow-x: hidden;
+        overflow-y: scroll;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+        height: auto;
+    }
+    
+    html {
+        overflow-x: hidden;
+        overflow-y: scroll;
+        height: 100%;
     }
     
     h1, .h1 {
@@ -208,6 +219,9 @@
         transform: translateX(-100%);
         transition: transform var(--transition-speed) ease;
         box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
     
     .sidebar.show {
@@ -277,6 +291,12 @@
         margin-left: 0 !important;
         padding: 1rem !important;
         width: 100%;
+        min-height: 100vh !important;
+        height: auto !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        display: block !important;
+        position: relative !important;
     }
 }
 

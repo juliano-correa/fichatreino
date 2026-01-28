@@ -41,7 +41,10 @@ try {
     
     $params = [':gym_id' => getGymId()];
     
-    if (!empty($aluno_filtro)) {
+    if (isAluno()) {
+        $sql .= " AND w.aluno_id = :aluno_id_sessao";
+        $params[':aluno_id_sessao'] = getAlunoId();
+    } elseif (!empty($aluno_filtro)) {
         $sql .= " AND w.aluno_id = :aluno_id";
         $params[':aluno_id'] = $aluno_filtro;
     }
@@ -140,12 +143,17 @@ try {
     <div class="card-header bg-white py-3">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filtros</h5>
+            <?php if (!isAluno()): ?>
             <a href="novo.php" class="btn btn-primary">
                 <i class="bi bi-plus-lg me-2"></i>Nova Ficha
             </a>
+            <?php endif; ?>
         </div>
     </div>
     <div class="card-body">
+        <?php if (isAluno()): ?>
+            <p class="text-muted mb-0">Visualizando suas fichas de treino.</p>
+        <?php else: ?>
         <form method="GET" class="row g-3">
             <div class="col-md-5">
                 <label for="aluno" class="form-label">Aluno</label>
@@ -177,6 +185,7 @@ try {
                 </a>
             </div>
         </form>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -248,12 +257,14 @@ try {
                                         <a href="visualizar.php?id=<?= $ficha['id'] ?>" class="btn btn-outline-primary" title="Visualizar">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        <?php if (!isAluno()): ?>
                                         <a href="editar.php?id=<?= $ficha['id'] ?>" class="btn btn-outline-primary" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <a href="excluir.php?id=<?= $ficha['id'] ?>" class="btn btn-outline-danger" title="Excluir" onclick="return confirmarExclusao(event, 'Tem certeza que deseja excluir esta ficha?');">
                                             <i class="bi bi-trash"></i>
                                         </a>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

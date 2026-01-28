@@ -6,6 +6,10 @@ $subtitulo_pagina = 'Criar Ficha de Treino';
 require_once '../includes/auth_check.php';
 require_once '../config/conexao.php';
 
+if (isAluno()) {
+    redirecionar('index.php');
+}
+
 $error = '';
 $success = '';
 

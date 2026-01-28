@@ -6,6 +6,10 @@ $subtitulo_pagina = 'Gestão de Alunos';
 require_once '../includes/auth_check.php';
 require_once '../config/conexao.php';
 
+if (isAluno()) {
+    redirecionar('../dashboard.php');
+}
+
 $error = '';
 $success = '';
 

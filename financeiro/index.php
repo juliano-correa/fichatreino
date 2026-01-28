@@ -59,9 +59,13 @@ try {
                        FROM transactions t
                        LEFT JOIN students s ON t.aluno_id = s.id
                        LEFT JOIN cash_registers c ON t.caixa_id = c.id
-                       WHERE t.gym_id = :gym_id 
-                       AND MONTH(t.data_vencimento) = :mes 
-                       AND YEAR(t.data_vencimento) = :ano";
+                       WHERE t.gym_id = :gym_id";
+
+    if (isAluno()) {
+        $sql_transacoes .= " AND t.aluno_id = :aluno_id_sessao";
+    } else {
+        $sql_transacoes .= " AND MONTH(t.data_vencimento) = :mes AND YEAR(t.data_vencimento) = :ano";
+    }
 
     if ($tipo_filtro !== 'todos') {
         $sql_transacoes .= " AND t.tipo = :tipo";
@@ -75,8 +79,12 @@ try {
 
     $stmt_transacoes = $pdo->prepare($sql_transacoes);
     $stmt_transacoes->bindValue(':gym_id', getGymId(), PDO::PARAM_INT);
-    $stmt_transacoes->bindValue(':mes', $mes_filtro, PDO::PARAM_STR);
-    $stmt_transacoes->bindValue(':ano', $ano_filtro, PDO::PARAM_STR);
+    if (isAluno()) {
+        $stmt_transacoes->bindValue(':aluno_id_sessao', getAlunoId(), PDO::PARAM_INT);
+    } else {
+        $stmt_transacoes->bindValue(':mes', $mes_filtro, PDO::PARAM_STR);
+        $stmt_transacoes->bindValue(':ano', $ano_filtro, PDO::PARAM_STR);
+    }
     if ($tipo_filtro !== 'todos') {
         $stmt_transacoes->bindValue(':tipo', $tipo_filtro, PDO::PARAM_STR);
     }
@@ -259,13 +267,18 @@ $anos = range(date('Y') - 2, date('Y') + 1);
                         <i class="bi bi-plus-circle me-2"></i>Suprimento
                     </a>
                 <?php endif; ?>
+                <?php if (!isAluno()): ?>
                 <a href="novo.php" class="btn btn-primary">
                     <i class="bi bi-plus-lg me-2"></i>Nova Transação
                 </a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
     <div class="card-body">
+        <?php if (isAluno()): ?>
+            <p class="text-muted mb-0">Visualizando seu histórico financeiro completo.</p>
+        <?php else: ?>
         <form method="GET" class="row g-3">
             <div class="col-md-2">
                 <label for="mes" class="form-label">Mês</label>
@@ -311,6 +324,7 @@ $anos = range(date('Y') - 2, date('Y') + 1);
                 </a>
             </div>
         </form>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -391,12 +405,14 @@ $anos = range(date('Y') - 2, date('Y') + 1);
                                         <a href="visualizar.php?id=<?= $transacao['id'] ?>" class="btn btn-outline-primary" title="Visualizar">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        <?php if (!isAluno()): ?>
                                         <a href="editar.php?id=<?= $transacao['id'] ?>" class="btn btn-outline-primary" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <a href="excluir.php?id=<?= $transacao['id'] ?>" class="btn btn-outline-danger" title="Excluir" onclick="return confirmarExclusao(event, 'Tem certeza que deseja excluir esta transação?');">
                                             <i class="bi bi-trash"></i>
                                         </a>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

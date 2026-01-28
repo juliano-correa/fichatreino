@@ -6,6 +6,10 @@ $subtitulo_pagina = 'Atualizar Ficha de Treino';
 require_once '../includes/auth_check.php';
 require_once '../config/conexao.php';
 
+if (isAluno()) {
+    redirecionar('index.php');
+}
+
 $id = $_GET['id'] ?? 0;
 $error = '';
 

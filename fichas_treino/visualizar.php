@@ -34,6 +34,12 @@ try {
         header('Location: index.php');
         exit;
     }
+
+    // Segurança adicional para perfil aluno
+    if (isAluno() && $ficha['aluno_id'] != getAlunoId()) {
+        header('Location: index.php');
+        exit;
+    }
 } catch (PDOException $e) {
     error_log('Erro ao carregar ficha: ' . $e->getMessage());
     header('Location: index.php');
@@ -85,6 +91,7 @@ $status_badge = $ficha['ativa'] == 1
 
 // Grupo muscular badge
 function getMuscleGroupBadge($gm) {
+    if (empty($gm)) return '';
     $cores = [
         'Peito' => 'danger',
         'Costas' => 'primary',
@@ -147,15 +154,19 @@ function getMuscleGroupBadge($gm) {
                 </p>
             </div>
             <div class="col-md-4 text-md-end mt-3 mt-md-0 no-print">
+                <?php if (!isAluno()): ?>
                 <a href="editar.php?id=<?= $ficha['id'] ?>" class="btn btn-primary me-2">
                     <i class="bi bi-pencil me-1"></i>Editar
                 </a>
+                <?php endif; ?>
                 <button class="btn btn-outline-primary me-2" onclick="window.print()">
                     <i class="bi bi-printer me-1"></i>Imprimir
                 </button>
+                <?php if (!isAluno()): ?>
                 <a href="excluir.php?id=<?= $ficha['id'] ?>" class="btn btn-outline-danger" onclick="return confirmarExclusao(event, 'Tem certeza que deseja excluir esta ficha?');">
                     <i class="bi bi-trash"></i>
                 </a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -262,17 +273,23 @@ function getMuscleGroupBadge($gm) {
                                 <td>
                                     <strong><?= sanitizar($ex['nome'] ?? 'Exercício') ?></strong>
                                 </td>
-                                <td><?= getMuscleGroupBadge($ex['grupo_muscular'] ?? null) ?></td>
-                                <td class="text-center"><?= $ex['series'] ?? '-' ?></td>
-                                <td class="text-center"><?= sanitizar($ex['repeticoes'] ?? '-') ?></td>
-                                <td class="text-center">
-                                    <?= !empty($ex['carga']) ? number_format($ex['carga'], 2, ',', '.') . ' kg' : '-' ?>
+                                <td>
+                                    <?= getMuscleGroupBadge($ex['grupo_muscular'] ?? '') ?>
                                 </td>
                                 <td class="text-center">
-                                    <?= !empty($ex['descanso']) ? $ex['descanso'] . 's' : '-' ?>
+                                    <?= sanitizar($ex['series'] ?? '-') ?>
+                                </td>
+                                <td class="text-center">
+                                    <?= sanitizar($ex['repeticoes'] ?? '-') ?>
+                                </td>
+                                <td class="text-center">
+                                    <?= !empty($ex['carga']) ? sanitizar($ex['carga']) . ' kg' : '-' ?>
+                                </td>
+                                <td class="text-center">
+                                    <?= !empty($ex['descanso']) ? sanitizar($ex['descanso']) . 's' : '-' ?>
                                 </td>
                                 <td class="text-muted">
-                                    <?= !empty($ex['observacoes']) ? sanitizar($ex['observacoes']) : '-' ?>
+                                    <small><?= !empty($ex['observacoes']) ? sanitizar($ex['observacoes']) : '-' ?></small>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -323,7 +340,7 @@ function getMuscleGroupBadge($gm) {
         margin: 0.8cm;
     }
     /* Ocultar elementos de interface */
-    .sidebar, .no-print, .accordion-button::after {
+    .sidebar, .no-print, .accordion-button::after, .navbar, .footer, .btn, .alert {
         display: none !important;
     }
     /* Ocultar breadcrumbs e navegação */
@@ -331,7 +348,7 @@ function getMuscleGroupBadge($gm) {
         display: none !important;
     }
     /* Ocultar ícones Bootstrap Icons exceto os essenciais para impressão */
-    .bi {
+    .bi:not(.bi-collection):not(.bi-chat-left-text) {
         display: none !important;
     }
     /* Mostrar header simples da academia */
@@ -359,49 +376,87 @@ function getMuscleGroupBadge($gm) {
         box-shadow: none !important;
         margin-bottom: 8px !important;
         page-break-inside: avoid;
+        display: block !important; /* Forçar display block para evitar flexbox no card */
     }
     .card-body {
         padding: 8px !important;
+        display: block !important;
     }
     .card-header {
         padding: 8px 12px !important;
         background: #f8f9fa !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        display: block !important;
     }
     body {
         background: white !important;
+        color: black !important;
+        font-family: Arial, sans-serif !important;
     }
     .main-content {
         margin-left: 0 !important;
         padding: 0 !important;
+        display: block !important;
     }
     .container-fluid {
         padding: 0 !important;
         margin: 0 !important;
         max-width: 100% !important;
+        display: block !important;
     }
+    /* Forçar a linha a se comportar como bloco mas manter colunas internas se necessário */
     .row {
+        display: flex !important;
+        flex-wrap: nowrap !important;
         margin: 0 !important;
     }
     [class*="col-"] {
         padding: 3px 5px !important;
+        float: none !important;
+    }
+    /* Ajuste específico para a tabela de exercícios */
+    .table-responsive {
+        overflow: visible !important;
+        display: block !important;
     }
     table {
         font-size: 10px;
+        width: 100% !important;
+        border-collapse: collapse !important;
+        table-layout: auto !important;
+        display: table !important; /* Forçar comportamento de tabela */
     }
-    table th, table td {
-        padding: 3px 6px !important;
+    thead {
+        display: table-header-group !important;
+    }
+    tbody {
+        display: table-row-group !important;
+    }
+    tr {
+        display: table-row !important;
+        page-break-inside: avoid !important;
+    }
+    th, td {
+        display: table-cell !important; /* Forçar comportamento de célula */
+        padding: 4px 6px !important;
+        border: 1px solid #dee2e6 !important;
+        vertical-align: middle !important;
+    }
+    .table-light {
+        background-color: #f8f9fa !important;
     }
     .badge {
         font-size: 9px;
         padding: 1px 4px;
+        border: 1px solid #ccc;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        display: inline-block !important;
     }
-    h4 {
-        font-size: 15px;
-        margin-bottom: 3px !important;
+    h4, h5, h6 {
+        margin-top: 0 !important;
+        margin-bottom: 5px !important;
     }
     .text-muted {
         color: #666 !important;

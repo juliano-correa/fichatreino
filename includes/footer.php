@@ -18,15 +18,19 @@
             </div>
             <div class="modal-body">
                 <div class="d-grid gap-2">
-                    <a href="alunos/create.php" class="btn btn-outline-primary btn-lg">
+                    <?php if (!isAluno()): ?>
+                    <a href="<?= base_url('alunos/create.php') ?>" class="btn btn-outline-primary btn-lg">
                         <i class="bi bi-person-plus me-2"></i>Novo Aluno
                     </a>
-                    <a href="checkin/index.php" class="btn btn-outline-success btn-lg">
+                    <a href="<?= base_url('checkin/index.php') ?>" class="btn btn-outline-success btn-lg">
                         <i class="bi bi-qr-code-scan me-2"></i>Registrar Presença
                     </a>
-                    <a href="financeiro/novo.php" class="btn btn-outline-info btn-lg">
+                    <a href="<?= base_url('financeiro/novo.php') ?>" class="btn btn-outline-info btn-lg">
                         <i class="bi bi-currency-dollar me-2"></i>Registrar Pagamento
                     </a>
+                    <?php else: ?>
+                    <p class="text-center text-muted">Nenhuma ação rápida disponível para seu perfil.</p>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -54,6 +58,9 @@
 <!-- Mobile Responsive CSS -->
 <link rel="stylesheet" href="<?= assets_url('css/mobile-responsive.css') ?>">
 
+<!-- Mobile Scroll Fix CSS (deve ser carregado por último) -->
+<link rel="stylesheet" href="<?= assets_url('css/mobile-scroll-fix.css') ?>">
+
 <!-- Mobile Enhancements JS -->
 <script src="<?= assets_url('js/mobile-enhancements.js') ?>"></script>
 
@@ -69,11 +76,7 @@
             if (sidebarOverlay) {
                 sidebarOverlay.classList.toggle('show');
             }
-            if (sidebar.classList.contains('show')) {
-                document.body.style.overflow = 'hidden';
-            } else {
-                document.body.style.overflow = '';
-            }
+            // Não bloquear overflow do body para permitir rolagem mobile
         }
     }
     
@@ -84,7 +87,6 @@
         
         if (sidebar) sidebar.classList.remove('show');
         if (sidebarOverlay) sidebarOverlay.classList.remove('show');
-        document.body.style.overflow = '';
     }
     
     // Toggle Accordion Function (Global) - Para os botões do menu
@@ -286,6 +288,17 @@
                 this.value = value;
             }
         });
+    });
+
+    // Corrigir rolagem mobile de forma menos agressiva
+    document.addEventListener('DOMContentLoaded', function() {
+        const fixScroll = () => {
+            if (!document.body.classList.contains('modal-open')) {
+                document.body.style.overflow = 'auto';
+            }
+        };
+        window.addEventListener('resize', fixScroll);
+        fixScroll();
     });
 </script>
 </body>

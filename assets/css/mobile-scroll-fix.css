@@ -1,0 +1,67 @@
+/**
+ * Mobile Scroll Fix - Correção agressiva para rolagem vertical
+ * Versão 2.0 - Foco em camadas e bloqueios de eventos
+ */
+
+/* Permitir rolagem vertical mantendo compatibilidade com modais */
+html, body {
+    overflow-x: hidden !important;
+    min-height: 100% !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+/* Removido para evitar conflitos com modais */
+/* body:not(.modal-open) {
+    overflow-y: auto !important;
+} */
+
+/* Garantir que o container principal não bloqueie nada */
+.main-content {
+    overflow-y: visible !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    position: relative !important;
+    z-index: 1 !important;
+    touch-action: pan-y !important;
+}
+
+/* Corrigir elementos que podem estar criando uma camada invisível bloqueadora */
+.sidebar-overlay {
+    pointer-events: none !important; /* Desabilita cliques por padrão */
+    opacity: 0;
+    visibility: hidden;
+}
+
+.sidebar-overlay.show {
+    pointer-events: auto !important; /* Habilita apenas quando visível */
+    opacity: 1;
+    visibility: visible;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1040 !important;
+}
+
+/* Garantir que modais funcionem corretamente */
+body.modal-open {
+    overflow: hidden !important;
+    padding-right: 0 !important; /* Evitar saltos de layout no mobile */
+}
+
+/* Ajuste específico para iOS para evitar o 'rubber band' que trava o scroll */
+@supports (-webkit-touch-callout: none) {
+    body {
+        cursor: pointer; /* Força o iOS a reconhecer interações de toque */
+    }
+}
+
+/* Depuração Visual (Opcional - pode ser removido após teste) 
+   Descomente as linhas abaixo para ver se há alguma camada invisível cobrindo a tela
+*/
+/*
+.sidebar-overlay { background: rgba(255,0,0,0.2) !important; }
+.main-content { border: 2px solid blue !important; }
+*/

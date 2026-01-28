@@ -31,6 +31,11 @@ try {
     if (!$transacao) {
         redirecionar('index.php');
     }
+
+    // Segurança adicional para perfil aluno
+    if (isAluno() && $transacao['aluno_id'] != getAlunoId()) {
+        redirecionar('index.php');
+    }
     
 } catch (PDOException $e) {
     $error = 'Erro ao carregar transação: ' . $e->getMessage();
@@ -156,9 +161,11 @@ try {
                                 <?php endif; ?>
                             </p>
                         </div>
+                        <?php if (!isAluno()): ?>
                         <a href="../alunos/visualizar.php?id=<?= $transacao['aluno_id'] ?>" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-eye me-1"></i>Ver Aluno
                         </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -175,15 +182,19 @@ try {
                 </h5>
             </div>
             <div class="card-body">
+                <?php if (!isAluno()): ?>
                 <a href="editar.php?id=<?= $transacao_id ?>" class="btn btn-primary w-100 mb-2">
                     <i class="bi bi-pencil me-2"></i>Editar Transação
                 </a>
+                <?php endif; ?>
                 <a href="index.php" class="btn btn-outline-secondary w-100 mb-2">
                     <i class="bi bi-arrow-left me-2"></i>Voltar à Lista
                 </a>
+                <?php if (!isAluno()): ?>
                 <a href="excluir.php?id=<?= $transacao_id ?>" class="btn btn-outline-danger w-100" onclick="return confirm('Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.');">
                     <i class="bi bi-trash me-2"></i>Excluir Transação
                 </a>
+                <?php endif; ?>
             </div>
         </div>
         

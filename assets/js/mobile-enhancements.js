@@ -38,11 +38,9 @@
         if (isMobile) {
             document.body.style.webkitOverflowScrolling = 'touch';
             
-            // Prevent pull-to-refresh
-            document.body.style.overscrollBehavior = 'none';
-            
-            // Prevent bounce effect
-            document.body.style.overflow = 'hidden';
+            // Permitir rolagem normal no mobile
+            document.body.style.overscrollBehavior = 'auto';
+            // Não forçar overflow aqui, deixar o CSS controlar
         }
 
         console.log('Mobile Optimizations: ' + (isMobile ? 'Enabled' : 'Disabled'));
@@ -291,7 +289,7 @@
                     // Swipe left - close
                     sidebar.classList.remove('show');
                     overlay.classList.remove('show');
-                    document.body.style.overflow = '';
+                    // Não manipular overflow do body, deixar o CSS controlar
                 }
             }
         }
@@ -391,16 +389,16 @@
 
         const overlay = document.createElement('div');
         overlay.className = 'mobile-loading-overlay';
-        overlay.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;"><div style="background:white;padding:2rem;border-radius:1rem;text-align:center;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div><p style="margin-top:1rem;margin-bottom:0;">' + (message || 'Carregando...') + '</p></div></div>';
+        overlay.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;overflow:hidden;"><div style="background:white;padding:2rem;border-radius:1rem;text-align:center;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div><p style="margin-top:1rem;margin-bottom:0;">' + (message || 'Carregando...') + '</p></div></div>';
         document.body.appendChild(overlay);
-        document.body.style.overflow = 'hidden';
+        // Não bloquear overflow do body, o overlay já cobre a tela
     };
 
     window.hideMobileLoading = function() {
         const overlay = document.querySelector('.mobile-loading-overlay');
         if (overlay) {
             overlay.remove();
-            document.body.style.overflow = '';
+            // Não manipular overflow do body, deixar o CSS controlar
         }
     };
 

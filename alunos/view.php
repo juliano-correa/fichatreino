@@ -22,6 +22,11 @@ try {
     if (!$aluno) {
         redirecionar('index.php');
     }
+
+    // Segurança adicional para perfil aluno
+    if (isAluno() && $aluno['id'] != getAlunoId()) {
+        redirecionar('../dashboard.php');
+    }
     
     // Últimas transações
     $stmt = $pdo->prepare("SELECT * FROM transactions WHERE gym_id = :gym_id AND aluno_id = :aluno_id ORDER BY created_at DESC LIMIT 5");
@@ -95,9 +100,11 @@ $idade = calcularIdade($aluno['data_nascimento']);
             </div>
             <div class="card-footer bg-white">
                 <div class="d-grid gap-2">
+                    <?php if (!isAluno()): ?>
                     <a href="<?= base_url('alunos/edit.php?id=' . $aluno_id) ?>" class="btn btn-primary">
                         <i class="bi bi-pencil me-2"></i>Editar Dados
                     </a>
+                    <?php endif; ?>
                     <a href="https://wa.me/<?= preg_replace('/\D/', '', $aluno['telefone']) ?>" target="_blank" class="btn btn-success">
                         <i class="bi bi-whatsapp me-2"></i>Enviar WhatsApp
                     </a>
@@ -231,9 +238,11 @@ $idade = calcularIdade($aluno['data_nascimento']);
                 <h5 class="card-title mb-0">
                     <i class="bi bi-clipboard-data me-2"></i>Avaliações Físicas
                 </h5>
+                <?php if (!isAluno()): ?>
                 <button class="btn btn-sm btn-primary">
                     <i class="bi bi-plus-lg me-1"></i>Nova Avaliação
                 </button>
+                <?php endif; ?>
             </div>
             <div class="card-body p-0">
                 <?php if (empty($avaliacoes)): ?>

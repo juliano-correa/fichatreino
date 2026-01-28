@@ -7,6 +7,10 @@
 require_once '../includes/auth_check.php';
 require_once '../config/conexao.php';
 
+if (isAluno()) {
+    redirecionar('index.php');
+}
+
 // Verificar ID da transação
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['error'] = 'Transação não especificada.';
