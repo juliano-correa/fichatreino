@@ -491,6 +491,7 @@ $exercicios_resolvidos_json = json_encode($exercicios_resolvidos);
 <script>
 // Grupos carregados do banco com exercícios resolvidos
 const gruposCarregados = <?= $exercicios_resolvidos_json ?>;
+console.log('Grupos carregados:', gruposCarregados);
 
 let indiceGrupo = 0;
 let indiceExercicioPorGrupo = {};
@@ -568,34 +569,58 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
     
     // Preencher dados se fornecidos
     if (dadosExercicio) {
+        console.log('Preenchendo exercício:', dadosExercicio);
         const inputNome = tr.querySelector('.nome-exercicio');
         const selectGrupo = tr.querySelector('select[name$="[grupo_muscular]"]');
         
         if (inputNome && dadosExercicio.nome) {
             inputNome.value = dadosExercicio.nome;
+            console.log('Nome preenchido:', dadosExercicio.nome);
         }
         
         // Preencher grupo muscular
         if (dadosExercicio.grupo_muscular && selectGrupo) {
             selectGrupo.value = dadosExercicio.grupo_muscular;
+            console.log('Grupo muscular preenchido:', dadosExercicio.grupo_muscular);
         }
         
         // Preencher outros campos (series, repeticoes, carga, descanso, observacoes)
         const inputs = tr.querySelectorAll('input:not(.nome-exercicio)');
+        console.log('Inputs encontrados:', inputs.length);
         inputs.forEach(input => {
             const name = input.name;
             // Extrair o nome do campo sem os índices
             const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
             if (match) {
                 const campo = match[2];
+                console.log(`Campo ${campo}:`, dadosExercicio[campo]);
                 // Preencher o valor se existir no dadosExercicio
                 if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
                     input.value = dadosExercicio[campo];
+                    console.log(`${campo} preenchido com:`, dadosExercicio[campo]);
                 } else if (campo === 'series' && !input.value) {
                     // Valor default para séries se não houver valor salvo
                     input.value = 3;
+                    console.log('Series preenchido com default: 3');
                 } else if (campo === 'repeticoes' && !input.value) {
                     // Valor default para repetições se não houver valor salvo
+                    input.value = 15;
+                    console.log('Repeticoes preenchido com default: 15');
+                }
+            }
+        });
+    } else {
+        console.log('Nenhum dado de exercício fornecido, aplicando defaults');
+        // Aplicar defaults para novos exercícios
+        const inputs = tr.querySelectorAll('input:not(.nome-exercicio)');
+        inputs.forEach(input => {
+            const name = input.name;
+            const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
+            if (match) {
+                const campo = match[2];
+                if (campo === 'series' && !input.value) {
+                    input.value = 3;
+                } else if (campo === 'repeticoes' && !input.value) {
                     input.value = 15;
                 }
             }
