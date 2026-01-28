@@ -232,6 +232,7 @@ $estados = [
 
 <!-- Abas de Navegação -->
 <ul class="nav nav-tabs mb-4" id="configTabs" role="tablist">
+    <?php if (!isAluno()): ?>
     <li class="nav-item">
         <button class="nav-link active" id="identidade-tab" data-bs-toggle="tab" data-bs-target="#identidade" type="button">
             <i class="bi bi-palette me-2"></i>Identidade Visual
@@ -242,21 +243,25 @@ $estados = [
             <i class="bi bi-building me-2"></i>Dados da Academia
         </button>
     </li>
+    <?php endif; ?>
     <li class="nav-item">
-        <button class="nav-link" id="conta-tab" data-bs-toggle="tab" data-bs-target="#conta" type="button">
+        <button class="nav-link <?= isAluno() ? 'active' : '' ?>" id="conta-tab" data-bs-toggle="tab" data-bs-target="#conta" type="button">
             <i class="bi bi-person-gear me-2"></i>Minha Conta
         </button>
     </li>
+    <?php if (!isAluno()): ?>
     <li class="nav-item">
         <button class="nav-link" id="sistema-tab" data-bs-toggle="tab" data-bs-target="#sistema" type="button">
             <i class="bi bi-sliders me-2"></i>Sistema
         </button>
     </li>
+    <?php endif; ?>
 </ul>
 
 <!-- Conteúdo das Abas -->
 <div class="tab-content" id="configTabsContent">
     
+    <?php if (!isAluno()): ?>
     <!-- Aba Identidade Visual -->
     <div class="tab-pane fade show active" id="identidade" role="tabpanel">
         <div class="card border-0 shadow-sm mb-4">
@@ -351,7 +356,9 @@ $estados = [
             </div>
         </div>
     </div>
+    <?php endif; ?>
     
+    <?php if (!isAluno()): ?>
     <!-- Aba Dados da Academia -->
     <div class="tab-pane fade" id="academia" role="tabpanel">
         <div class="card border-0 shadow-sm">
@@ -418,9 +425,10 @@ $estados = [
             </div>
         </div>
     </div>
+    <?php endif; ?>
     
     <!-- Aba Minha Conta -->
-    <div class="tab-pane fade" id="conta" role="tabpanel">
+    <div class="tab-pane fade <?= isAluno() ? 'show active' : '' ?>" id="conta" role="tabpanel">
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white py-3">
                 <h5 class="mb-0"><i class="bi bi-person me-2"></i>Informações do Usuário</h5>
@@ -480,6 +488,7 @@ $estados = [
         </div>
     </div>
     
+    <?php if (!isAluno()): ?>
     <!-- Aba Sistema -->
     <div class="tab-pane fade" id="sistema" role="tabpanel">
         <div class="card border-0 shadow-sm mb-4">
@@ -539,8 +548,9 @@ $estados = [
                 </div>
             </div>
         </div>
+        <?php endif; ?>
+        
     </div>
-    
 </div>
 
 <style>
