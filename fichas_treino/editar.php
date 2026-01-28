@@ -592,11 +592,11 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
             console.log(`  Processando input ${idx}...`);
             const name = input.name;
             console.log(`    name: "${name}"`);
-            // Extrair o nome do campo sem os índices
-            const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
+            // Extrair o nome do campo sem os índices - formato: grupos[X][exercicios][Y][campo]
+            const match = name.match(/grupos\[\d+\]\[exercicios\]\[\d+\]\[(.+)\]/);
             console.log(`    match:`, match);
             if (match) {
-                const campo = match[2];
+                const campo = match[1];
                 console.log(`    Campo identificado: ${campo}, valor:`, dadosExercicio[campo]);
                 // Preencher o valor se existir no dadosExercicio
                 if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
@@ -622,9 +622,9 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
         const inputs = tr.querySelectorAll('input:not(.nome-exercicio)');
         inputs.forEach(input => {
             const name = input.name;
-            const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
+            const match = name.match(/grupos\[\d+\]\[exercicios\]\[\d+\]\[(.+)\]/);
             if (match) {
-                const campo = match[2];
+                const campo = match[1];
                 if (campo === 'series' && !input.value) {
                     input.value = 3;
                 } else if (campo === 'repeticoes' && !input.value) {
