@@ -368,11 +368,11 @@ $grupos_musculares = [
         </td>
         <td>
             <input type="number" class="form-control form-control-sm"
-                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][series]" value="3" min="1" max="20">
+                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][series]" placeholder="3" min="1" max="20">
         </td>
         <td>
             <input type="text" class="form-control form-control-sm"
-                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][repeticoes]" value="15">
+                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][repeticoes]" placeholder="15">
         </td>
         <td>
             <input type="number" class="form-control form-control-sm" 
@@ -485,6 +485,12 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
                 // Preencher o valor se existir no dadosExercicio
                 if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
                     input.value = dadosExercicio[campo];
+                } else if (campo === 'series' && !input.value) {
+                    // Valor default para séries se não houver valor salvo
+                    input.value = 3;
+                } else if (campo === 'repeticoes' && !input.value) {
+                    // Valor default para repetições se não houver valor salvo
+                    input.value = 15;
                 }
             }
         });

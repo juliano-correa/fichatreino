@@ -160,8 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'exercise_id' => !empty($ex['exercise_id']) ? intval($ex['exercise_id']) : null,
                         'nome' => !empty(trim($ex['nome'])) ? trim($ex['nome']) : null,
                         'grupo_muscular' => $ex['grupo_muscular'] ?? null,
-                        'series' => isset($ex['series']) && $ex['series'] !== '' ? $ex['series'] : null,
-                        'repeticoes' => isset($ex['repeticoes']) && $ex['repeticoes'] !== '' ? $ex['repeticoes'] : null,
+                        'series' => isset($ex['series']) && $ex['series'] !== '' ? $ex['series'] : 3,
+                        'repeticoes' => isset($ex['repeticoes']) && $ex['repeticoes'] !== '' ? $ex['repeticoes'] : 15,
                         'carga' => !empty($ex['carga']) ? $ex['carga'] : null,
                         'descanso' => !empty($ex['descanso']) ? $ex['descanso'] : null,
                         'observacoes' => $ex['observacoes'] ?? null
@@ -462,11 +462,11 @@ $exercicios_resolvidos_json = json_encode($exercicios_resolvidos);
         </td>
         <td>
             <input type="number" class="form-control form-control-sm"
-                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][series]" value="3" min="1" max="20">
+                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][series]" placeholder="3" min="1" max="20">
         </td>
         <td>
             <input type="text" class="form-control form-control-sm"
-                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][repeticoes]" value="15">
+                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][repeticoes]" placeholder="15">
         </td>
         <td>
             <input type="number" class="form-control form-control-sm" 
@@ -588,9 +588,15 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
             const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
             if (match) {
                 const campo = match[2];
-                // Preencher o valor se existir no dadosExercicio (incluindo valores vazios para limpar defaults)
+                // Preencher o valor se existir no dadosExercicio
                 if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
                     input.value = dadosExercicio[campo];
+                } else if (campo === 'series' && !input.value) {
+                    // Valor default para séries se não houver valor salvo
+                    input.value = 3;
+                } else if (campo === 'repeticoes' && !input.value) {
+                    // Valor default para repetições se não houver valor salvo
+                    input.value = 15;
                 }
             }
         });
