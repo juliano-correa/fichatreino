@@ -482,8 +482,8 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
             const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
             if (match) {
                 const campo = match[2];
-                // Sempre preencher o valor se existir no dadosExercicio
-                if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null && dadosExercicio[campo] !== '') {
+                // Preencher o valor se existir no dadosExercicio
+                if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
                     input.value = dadosExercicio[campo];
                 }
             }

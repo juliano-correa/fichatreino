@@ -160,8 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'exercise_id' => !empty($ex['exercise_id']) ? intval($ex['exercise_id']) : null,
                         'nome' => !empty(trim($ex['nome'])) ? trim($ex['nome']) : null,
                         'grupo_muscular' => $ex['grupo_muscular'] ?? null,
-                        'series' => !empty($ex['series']) ? $ex['series'] : 3,
-                        'repeticoes' => !empty($ex['repeticoes']) ? $ex['repeticoes'] : 15,
+                        'series' => isset($ex['series']) && $ex['series'] !== '' ? $ex['series'] : null,
+                        'repeticoes' => isset($ex['repeticoes']) && $ex['repeticoes'] !== '' ? $ex['repeticoes'] : null,
                         'carga' => !empty($ex['carga']) ? $ex['carga'] : null,
                         'descanso' => !empty($ex['descanso']) ? $ex['descanso'] : null,
                         'observacoes' => $ex['observacoes'] ?? null
@@ -588,8 +588,8 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
             const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
             if (match) {
                 const campo = match[2];
-                // Sempre preencher o valor se existir no dadosExercicio
-                if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null && dadosExercicio[campo] !== '') {
+                // Preencher o valor se existir no dadosExercicio (incluindo valores vazios para limpar defaults)
+                if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
                     input.value = dadosExercicio[campo];
                 }
             }
