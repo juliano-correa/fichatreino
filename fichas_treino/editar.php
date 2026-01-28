@@ -587,28 +587,35 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
         // Preencher outros campos (series, repeticoes, carga, descanso, observacoes)
         const inputs = tr.querySelectorAll('input:not(.nome-exercicio)');
         console.log('Inputs encontrados:', inputs.length);
-        inputs.forEach(input => {
+        console.log('Iniciando forEach dos inputs...');
+        inputs.forEach((input, idx) => {
+            console.log(`  Processando input ${idx}...`);
             const name = input.name;
+            console.log(`    name: "${name}"`);
             // Extrair o nome do campo sem os índices
             const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
+            console.log(`    match:`, match);
             if (match) {
                 const campo = match[2];
-                console.log(`Campo ${campo}:`, dadosExercicio[campo]);
+                console.log(`    Campo identificado: ${campo}, valor:`, dadosExercicio[campo]);
                 // Preencher o valor se existir no dadosExercicio
                 if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
                     input.value = dadosExercicio[campo];
-                    console.log(`${campo} preenchido com:`, dadosExercicio[campo]);
+                    console.log(`    ${campo} preenchido com:`, dadosExercicio[campo]);
                 } else if (campo === 'series' && !input.value) {
                     // Valor default para séries se não houver valor salvo
                     input.value = 3;
-                    console.log('Series preenchido com default: 3');
+                    console.log('    Series preenchido com default: 3');
                 } else if (campo === 'repeticoes' && !input.value) {
                     // Valor default para repetições se não houver valor salvo
                     input.value = 15;
-                    console.log('Repeticoes preenchido com default: 15');
+                    console.log('    Repeticoes preenchido com default: 15');
                 }
+            } else {
+                console.log(`    Regex não deu match!`);
             }
         });
+        console.log('forEach concluído');
     } else {
         console.log('Nenhum dado de exercício fornecido, aplicando defaults');
         // Aplicar defaults para novos exercícios
