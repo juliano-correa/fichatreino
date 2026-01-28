@@ -86,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'exercise_id' => !empty($ex['exercise_id']) ? intval($ex['exercise_id']) : null,
                         'nome' => !empty(trim($ex['nome'])) ? trim($ex['nome']) : null,
                         'grupo_muscular' => $ex['grupo_muscular'] ?? null,
-                        'series' => !empty($ex['series']) ? $ex['series'] : null,
-                        'repeticoes' => $ex['repeticoes'] ?? null,
+                        'series' => !empty($ex['series']) ? $ex['series'] : 3,
+                        'repeticoes' => !empty($ex['repeticoes']) ? $ex['repeticoes'] : 15,
                         'carga' => !empty($ex['carga']) ? $ex['carga'] : null,
                         'descanso' => !empty($ex['descanso']) ? $ex['descanso'] : null,
                         'observacoes' => $ex['observacoes'] ?? null
@@ -367,12 +367,12 @@ $grupos_musculares = [
             </select>
         </td>
         <td>
-            <input type="number" class="form-control form-control-sm" 
-                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][series]" placeholder="3" min="1" max="20">
+            <input type="number" class="form-control form-control-sm"
+                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][series]" value="3" min="1" max="20">
         </td>
         <td>
-            <input type="text" class="form-control form-control-sm" 
-                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][repeticoes]" placeholder="12">
+            <input type="text" class="form-control form-control-sm"
+                   name="grupos[__GRUPO_INDEX__][exercicios][__EXERCICIO_INDEX__][repeticoes]" value="15">
         </td>
         <td>
             <input type="number" class="form-control form-control-sm" 
@@ -475,14 +475,15 @@ function adicionarExercicioPreenchido(grupoDiv, dadosExercicio, grupoIndex) {
         if (inputNome) inputNome.value = dadosExercicio.nome;
         if (dadosExercicio.grupo_muscular && selectGrupo) selectGrupo.value = dadosExercicio.grupo_muscular;
         
-        // Preencher outros campos
+        // Preencher outros campos (series, repeticoes, carga, descanso, observacoes)
         const inputs = tr.querySelectorAll('input:not(.nome-exercicio)');
         inputs.forEach(input => {
             const name = input.name;
             const match = name.match(/exercicios\[(\d+)\]\[(.+)\]/);
             if (match) {
                 const campo = match[2];
-                if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null) {
+                // Sempre preencher o valor se existir no dadosExercicio
+                if (dadosExercicio[campo] !== undefined && dadosExercicio[campo] !== null && dadosExercicio[campo] !== '') {
                     input.value = dadosExercicio[campo];
                 }
             }
